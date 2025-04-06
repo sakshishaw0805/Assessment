@@ -42,7 +42,7 @@ def search_assessments(query: str, model, index, assessments: List[Dict[str, Any
             results.append(assessment)
     return results
 
-@app.before_first_request
+@app.before_request
 def initialize():
     global assessments, model, index
     assessments = load_assessments('assessments.json')  # Use the output from your scraper
