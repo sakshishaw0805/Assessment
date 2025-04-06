@@ -4,7 +4,6 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 import faiss
 from flask import Flask, request, jsonify
-import os
 
 app = Flask(__name__)
 assessments = []
@@ -41,15 +40,14 @@ def search_assessments(query: str, model, index, assessments: List[Dict[str, Any
             assessment['score'] = float(distances[0][i])
             results.append(assessment)
     return results
-def initialize_app():
+
+@app.before_request
+def initialize():
     global assessments, model, index
-    assessments = load_assessments('assessments.json')
+    assessments = load_assessments('assessments.json')  # Use the output from your scraper
     model = SentenceTransformer('all-MiniLM-L6-v2')
     embeddings = create_embeddings(assessments)
     index = setup_faiss_index(embeddings)
-
-
-initialize_app()
 
 @app.route('/api/recommend', methods=['GET'])
 def recommend():
@@ -60,5 +58,4 @@ def recommend():
     return jsonify(results)
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(debug=True, host='0.0.0.0', port=5000)
