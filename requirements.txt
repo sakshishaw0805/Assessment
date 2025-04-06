@@ -1,0 +1,8 @@
+flask
+sentence-transformers
+faiss-cpu
+numpy
+streamlit
+requests
+pandas
+beautifulsoup4
