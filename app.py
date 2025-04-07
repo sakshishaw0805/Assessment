@@ -61,6 +61,13 @@ def initialize_app():
         initialized = False
         raise
 
+# Initialize at module level for WSGI compatibility
+try:
+    initialize_app()
+except Exception as e:
+    logger.error(f"Failed to initialize at startup: {str(e)}")
+    # Don’t exit here; let the app start and handle errors in endpoints
+
 @app.route('/api/recommend', methods=['GET'])
 def recommend():
     global model, index, assessments, initialized
@@ -92,7 +99,7 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     logger.info(f"Starting server on port {port}")
     try:
-        initialize_app()
+        initialize_app()  # For local testing
     except Exception as e:
         logger.error(f"Failed to start server: {str(e)}")
         exit(1)
