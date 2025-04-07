@@ -5,9 +5,9 @@ from sentence_transformers import SentenceTransformer
 import faiss
 from flask import Flask, request, jsonify
 
-app = Flask(__name__)
-assessments = []
-model = None
+# Global variables
+assessments: List[Dict[str, Any]] = []
+model = SentenceTransformer('all-MiniLM-L6-v2')
 index = None
 
 def load_assessments(file_path: str) -> List[Dict[str, Any]]:
@@ -18,10 +18,8 @@ def load_assessments(file_path: str) -> List[Dict[str, Any]]:
         print(f"Error loading assessments: {str(e)}")
         return []
 
-def create_embeddings(assessments: List[Dict[str, Any]], model_name: str = 'all-MiniLM-L6-v2') -> np.ndarray:
-    model = SentenceTransformer(model_name)
-    texts = [f"{assessment['name']} {assessment['description']} {assessment['test_type']}" 
-             for assessment in assessments]
+def create_embeddings(assessments: List[Dict[str, Any]]) -> np.ndarray:
+    texts = [f"{a['name']} {a['description']} {a['test_type']}" for a in assessments]
     return model.encode(texts)
 
 def setup_faiss_index(embeddings: np.ndarray) -> faiss.IndexFlatL2:
@@ -30,7 +28,7 @@ def setup_faiss_index(embeddings: np.ndarray) -> faiss.IndexFlatL2:
     index.add(embeddings)
     return index
 
-def search_assessments(query: str, model, index, assessments: List[Dict[str, Any]], top_k: int = 10) -> List[Dict[str, Any]]:
+def search_assessments(query: str, top_k: int = 10) -> List[Dict[str, Any]]:
     query_embedding = model.encode([query])
     distances, indices = index.search(query_embedding, top_k)
     results = []
@@ -41,21 +39,23 @@ def search_assessments(query: str, model, index, assessments: List[Dict[str, Any
             results.append(assessment)
     return results
 
-@app.before_request
-def initialize():
-    global assessments, model, index
+def create_app():
+    app = Flask(__name__)
+    
+    global assessments, index
     assessments = load_assessments('assessments.json')
-    model = SentenceTransformer('all-MiniLM-L6-v2')
     embeddings = create_embeddings(assessments)
     index = setup_faiss_index(embeddings)
-
-@app.route('/api/recommend', methods=['GET'])
-def recommend():
-    query = request.args.get('query', '')
-    if not query:
-        return jsonify({"error": "No query provided"}), 400
-    results = search_assessments(query, model, index, assessments)
-    return jsonify(results)
-
+    
+    @app.route('/api/recommend', methods=['GET'])
+    def recommend():
+        query = request.args.get('query', '')
+        if not query:
+            return jsonify({"error": "No query provided"}), 400
+        results = search_assessments(query)
+        return jsonify(results)
+    
+    return app
+app = create_app()
 if __name__ == "__main__":
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True)
