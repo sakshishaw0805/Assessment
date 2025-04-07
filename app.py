@@ -2,18 +2,17 @@ from typing import List, Dict, Any
 import os
 import json
 import numpy as np
-from sentence_transformers import SentenceTransformer
 import faiss
+from sentence_transformers import SentenceTransformer
 from flask import Flask, request, jsonify
 import logging
-import gc
-import torch
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
+# Global variables
 assessments = None
 model = None
 index = None
@@ -28,25 +27,6 @@ def load_assessments(file_path: str) -> List[Dict[str, Any]]:
         logger.error(f"Failed to load assessments: {str(e)}")
         raise
 
-def create_embeddings_batched(assessments: List[Dict[str, Any]], model_name: str = 'all-MiniLM-L6-v2', batch_size: int = 16) -> tuple:
-    logger.info(f"Loading model: {model_name}")
-    os.environ["CUDA_VISIBLE_DEVICES"] = ""
-    torch.set_num_threads(1)
-    model = SentenceTransformer(model_name, device='cpu')
-    texts = [f"{assessment.get('name', '')} {assessment.get('description', '')} {assessment.get('test_type', '')}" 
-             for assessment in assessments]
-    logger.info(f"Processing {len(texts)} texts in batches of {batch_size}")
-    all_embeddings = []
-    for i in range(0, len(texts), batch_size):
-        batch_texts = texts[i:i+batch_size]
-        logger.info(f"Processing batch {i//batch_size + 1}/{(len(texts)-1)//batch_size + 1}")
-        batch_embeddings = model.encode(batch_texts, show_progress_bar=False)
-        all_embeddings.append(batch_embeddings)
-        gc.collect()
-    embeddings = np.vstack(all_embeddings)
-    logger.info(f"Created embeddings with shape {embeddings.shape}")
-    return embeddings, model
-
 def setup_faiss_index(embeddings: np.ndarray) -> faiss.IndexFlatL2:
     dimension = embeddings.shape[1]
     index = faiss.IndexFlatL2(dimension)
@@ -57,9 +37,8 @@ def setup_faiss_index(embeddings: np.ndarray) -> faiss.IndexFlatL2:
 def search_assessments(query: str, model, index, assessments: List[Dict[str, Any]], top_k: int = 10):
     query_embedding = model.encode([query], show_progress_bar=False)
     distances, indices = index.search(query_embedding, top_k)
-    results = [assessments[idx].copy() 
+    results = [assessments[idx].copy() | {'score': float(distances[0][i])} 
                for i, idx in enumerate(indices[0]) if idx < len(assessments)]
-    gc.collect()
     return results
 
 def initialize_app():
@@ -69,11 +48,11 @@ def initialize_app():
         return
     logger.info("Starting initialization...")
     try:
-        gc.collect()
         assessments = load_assessments('assessments.json')
         logger.info(f"Loaded {len(assessments)} assessments")
-        embeddings, sentence_model = create_embeddings_batched(assessments, batch_size=16)
-        model = sentence_model
+        embeddings = np.load('embeddings.npy')
+        logger.info(f"Loaded embeddings with shape {embeddings.shape}")
+        model = SentenceTransformer('all-MiniLM-L6-v2', device='cpu')
         index = setup_faiss_index(embeddings)
         initialized = True
         logger.info("Initialization completed successfully")
@@ -113,7 +92,7 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     logger.info(f"Starting server on port {port}")
     try:
-        initialize_app() 
+        initialize_app()
     except Exception as e:
         logger.error(f"Failed to start server: {str(e)}")
         exit(1)
