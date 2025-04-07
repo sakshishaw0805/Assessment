@@ -10,7 +10,6 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def load_model_and_index():
-    """Preload model and create index, saving to disk to avoid timeout issues"""
     try:
         logger.info("Preloading model and creating index...")
         model = SentenceTransformer('paraphrase-MiniLM-L3-v2')
