@@ -1,6 +1,7 @@
 streamlit
 requests
 pandas
+pickle
 beautifulsoup4
 flask==2.3.3
 numpy==1.25.2
