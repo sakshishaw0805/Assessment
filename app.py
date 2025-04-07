@@ -5,7 +5,6 @@ from sentence_transformers import SentenceTransformer
 import faiss
 from flask import Flask, request, jsonify
 
-# Global variables
 assessments: List[Dict[str, Any]] = []
 model = SentenceTransformer('all-MiniLM-L6-v2')
 index = None

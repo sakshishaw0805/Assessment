@@ -1,10 +1,11 @@
-flask
-sentence-transformers
-faiss-cpu
-numpy
 streamlit
 requests
 pandas
 beautifulsoup4
-gunicorn
-transformers
+flask==2.3.3
+numpy==1.25.2
+sentence-transformers==2.2.2
+faiss-cpu==1.7.4
+gunicorn==21.2.0
+transformers==4.30.2
+torch==2.0.1
