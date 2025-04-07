@@ -4,6 +4,7 @@ import numpy as np
 from flask import Flask, request, jsonify
 import os
 import logging
+import pickle
 logging.basicConfig(level=logging.INFO, 
                     format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -67,31 +68,39 @@ def initialize_resources():
     global assessments, model, index
     
     try:
-        from sentence_transformers import SentenceTransformer
-        import faiss
-        
-        logger.info("Loading assessments...")
-        assessments = load_assessments('assessments.json')
-        
-        logger.info("Loading model...")
+        logger.info("Loading pre-generated resources from disk...")
         try:
-            model = SentenceTransformer('all-MiniLM-L6-v2')
-        except (NameError, ImportError) as e:
-            logger.warning(f"Error initializing primary model: {str(e)}")
-            logger.info("Trying fallback model...")
+            with open('model.pkl', 'rb') as f:
+                model = pickle.load(f)
+            logger.info("Loaded model from pickle file")
+        except Exception as e:
+            logger.warning(f"Could not load model from pickle: {e}")
+            from sentence_transformers import SentenceTransformer
             model = SentenceTransformer('paraphrase-MiniLM-L3-v2')
-        
-        logger.info("Creating embeddings...")
-        embeddings = create_embeddings(assessments)
-        
-        logger.info("Setting up FAISS index...")
-        dimension = embeddings.shape[1]
-        index = faiss.IndexFlatL2(dimension)
-        index.add(embeddings)
-        
+            logger.info("Loaded fresh model instance")
+        try:
+            with open('assessments_processed.json', 'r') as f:
+                assessments = json.load(f)
+            logger.info(f"Loaded {len(assessments)} processed assessments")
+        except Exception as e:
+            logger.warning(f"Could not load processed assessments: {e}")
+            assessments = load_assessments('assessments.json')
+        try:
+            import faiss
+            with open('index.pkl', 'rb') as f:
+                index = pickle.load(f)
+            logger.info("Loaded index from pickle file")
+        except Exception as e:
+            logger.warning(f"Could not load index from pickle: {e}")
+            logger.info("Creating new embeddings and index...")
+            embeddings = create_embeddings(assessments)
+            dimension = embeddings.shape[1]
+            index = faiss.IndexFlatL2(dimension)
+            index.add(embeddings)
+            
         logger.info("Resources initialized successfully")
     except Exception as e:
-        logger.error(f"Error in initialize_resources: {str(e)}")
+        logger.error(f"Error in initialize_resources: {e}")
         raise
 
 def load_assessments(file_path: str) -> List[Dict[str, Any]]:
